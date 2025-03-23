@@ -1,0 +1,127 @@
+import pygame
+import sys
+import math
+
+# 初始化程序
+pygame.init()
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+clock = pygame.time.Clock()
+font = pygame.font.Font(None, 32)
+
+# 颜色常量
+BLUE = (30, 144, 255)
+BROWN = (139, 69, 19)
+WHITE = (255, 255, 255)
+
+class DivingGame:
+    def __init__(self):
+        self.total_score = 0
+        self.reset_game()
+
+    def reset_game(self):
+        """重置游戏状态"""
+        self.game_state = "running"  # running/jumping/scoring
+        self.player_x = 100
+        self.player_y = 400
+        self.speed_x = 0
+        self.speed_y = 0
+        self.hold_time = 0
+        self.entry_angle = 0
+        self.current_score = 0
+
+    def draw_diver(self):
+        """用简单圆形代表运动员"""
+        pygame.draw.circle(screen, WHITE, (self.player_x, self.player_y), 15)
+
+    def draw_pool(self):
+        """绘制泳池和跳台"""
+        pygame.draw.rect(screen, BROWN, (100, 450, 400, 10))  # 跳台
+        pygame.draw.rect(screen, BLUE, (0, 490, WIDTH, HEIGHT-490))  # 水池
+
+    def draw_interface(self):
+        """显示积分和按钮"""
+        # 总分显示
+        score_text = font.render(f"总积分: {self.total_score}", True, WHITE)
+        screen.blit(score_text, (20, 20))
+
+        # 重新开始按钮
+        pygame.draw.rect(screen, (200,0,0), (WIDTH-120, 20, 100, 40))
+        restart_text = font.render("重置", True, WHITE)
+        screen.blit(restart_text, (WIDTH-90, 30))
+
+        # 当前操作提示
+        if self.game_state == "jumping":
+            timer_bar = pygame.Rect(300, 100, 200, 30)
+            pygame.draw.rect(screen, (0,255,0), timer_bar)
+            perc = pygame.time.get_ticks() - self.hold_time
+            tip_text = font.render(f"SPACE键已按压 {perc}ms", True, WHITE)
+            screen.blit(tip_text, (310, 130))
+
+    def physics_update(self):
+        """物理系统更新"""
+        if self.game_state == "scoring":
+            self.speed_y += 0.5
+            self.player_x += self.speed_x
+            self.player_y += self.speed_y
+
+            # 入水检测
+            if self.player_y > 480:
+                self.entry_angle = math.degrees(math.atan2(self.speed_y, self.speed_x))
+                angle_score = max(0, 100 - abs(90 - abs(self.entry_angle)))
+                time_score = max(0, 100 - abs(500 - self.hold_time)/5)
+                self.current_score = int(time_score * 0.6 + angle_score * 0.4)
+                self.total_score += self.current_score
+                self.game_state = "show_result"
+
+    def run(self):
+        running = True
+        while running:
+            screen.fill((135, 206, 235))  # 蓝色背景
+
+            # 检测输入事件
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if WIDTH-120 < event.pos[0] < WIDTH-20 and 20 < event.pos[1] < 60:
+                        self.total_score = 0
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE and self.game_state == "running":
+                        self.hold_time = pygame.time.get_ticks()
+                        self.game_state = "jumping"
+                if event.type == pygame.KEYUP and self.game_state == "jumping":
+                    if event.key == pygame.K_SPACE:
+                        # 计算跳跃参数
+                        self.hold_time = pygame.time.get_ticks() - self.hold_time
+                        self.speed_x = 8 + self.hold_time / 100
+                        self.speed_y = -self.hold_time * 0.12
+                        self.game_state = "scoring"
+
+            # 物理模拟
+            self.physics_update()
+
+            # 绘制元素
+            self.draw_pool()
+            self.draw_diver()
+            self.draw_interface()
+
+            # 结果显示
+            if self.game_state == "show_result":
+                result_text = font.render(f"本轮得分: {self.current_score} (角度: {int(self.entry_angle)}°)", True, WHITE)
+                screen.blit(result_text, (250, 200))
+                pygame.draw.rect(screen, (0,200,0), (300, 250, 200, 30))
+                screen.blit(font.render("按R键重新开始", True, WHITE), (330, 255))
+
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_r]:
+                    self.reset_game()
+
+            pygame.display.update()
+            clock.tick(60)
+
+if __name__ == "__main__":
+    game = DivingGame()
+    game.run()
+    pygame.quit()
+    sys.exit()
